@@ -34,7 +34,8 @@
 
 use std::sync::Arc;
 
-use crate::ast::{AST, ASTNode, Expr, Op, Scope};
+use crate::ast::{AST, ASTNode, Expr, Op};
+use crate::compiler::scope::Scope;
 use crate::literals::{PrimitiveType, Literal, Parameter, Generic};
 use crate::compiler::instructions::{Instruction, Label};
 use std::borrow::BorrowMut;
@@ -155,9 +156,8 @@ impl Method {
 						instructions.push(Instruction::Return(PrimitiveType::Nil));
 					}
 				},
-				ASTNode::ScopeEnd(scope) => {
-					// run scope.dropall() to free all local variables in this scope
-					scope.dropall();
+				ASTNode::ScopeEnd() => {
+
 				},
 				_ => {}
 			}

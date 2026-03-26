@@ -13,6 +13,7 @@ pub enum TokenType {
     LeftParen, RightParen, LeftBrace, RightBrace,
     LeftBracket, RightBracket, Comma, Dot, Minus, 
     Plus, Semicolon, Slash, QuestionMark, Caret,
+    Octothorpe, Tilde,
 
     // One or two char tokens
     Bang, BangEqual,
@@ -131,6 +132,8 @@ impl Lexer {
                 '^' => self.add_token(TokenType::Caret, "^"),
                 '|' => self.match_token('|', TokenType::DoubleBar, TokenType::Bar),
                 '&' => self.match_token('&', TokenType::DoubleAmpersand, TokenType::Ampersand),
+                '#' => self.add_token(TokenType::Octothorpe, "#"),
+                '~' => self.add_token(TokenType::Tilde, "~"),
 
                 // Double character operators
                 '!' => self.match_token('=', TokenType::BangEqual, TokenType::Bang),

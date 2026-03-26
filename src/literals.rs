@@ -29,6 +29,26 @@ impl PrimitiveType {
         }
     }
 
+    pub fn from_string(s: &str) -> PrimitiveType {
+        match s {
+            "bool" => PrimitiveType::Bool,
+            "int" => PrimitiveType::Int,
+            "double" => PrimitiveType::Double,
+            "float" => PrimitiveType::Float,
+            "long" => PrimitiveType::Long,
+            "char" => PrimitiveType::Char,
+            "string" => PrimitiveType::String,
+            "nil" => PrimitiveType::Nil,
+            "null" => PrimitiveType::Nil,
+            "void" => PrimitiveType::Nil,
+            _ if s.ends_with("[]") => {
+                let inner = &s[..s.len() - 2];
+                PrimitiveType::Array(Box::new(PrimitiveType::from_string(inner)))
+            },
+            _ => PrimitiveType::Reference(s.to_string()),
+        }
+    }
+
     // precedence for type promotion in binary operations
     pub fn precedence(&self) -> u8 {
         match self {
@@ -112,7 +132,7 @@ impl Literal {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Generic {
-    constraints: Vec<PrimitiveType>, // should only be references (i think?)
+    pub constraints: Vec<PrimitiveType>, // should only be references (i think?)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -147,4 +167,11 @@ impl Parameter {
             Parameter::Signature { param_type } => param_type.clone(),
         }
     }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct GenericType{
+	pub base: PrimitiveType,
+	pub generic: Option<Generic>,
 }

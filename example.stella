@@ -1,0 +1,74 @@
+#defaults[methods=public+global, classes=public] // makes attributes and methods public by default
+#root[fabric.core] // inherited .stellab bundle defining main class header, dependencies, and loader integration
+
+// Stella imports (distinct from Java imports)
+using stella.fabric.lore as lore;
+using fabric.item.*; // `*` promotes module members to global namespace
+using fabric.events;
+
+// stella imports: inject all imported binaries into
+//                 AST before file concatenation 
+
+
+// direct Java interoperability
+import java.util.*; // jv imports: compile-time aliases for classes
+
+enum ItemType{ A, B, C, D; }
+
+interface Stats{
+    HashMap<String,Any> getStats(); // interface contract
+}
+
+// ------------------------------------------------------------
+// STRUCT IMPLEMENTATION
+// ------------------------------------------------------------
+
+#derive[Construct, Debug]
+struct AStats: Stats{
+    damage: 5d; // inferred double
+}
+
+fn HashMap<String,Any> getStats(this: AStats){
+    return {"damage": this.damage}; // map literal auto-converted to HashMap
+}
+
+impl AStats::{getStats};
+
+impl AStats::{
+    fn setDamage(this, dmg: double){
+        this.damage = dmg;
+    }
+};
+
+// ------------------------------------------------------------
+// DATA STRUCT
+// ------------------------------------------------------------
+
+// `data` prefix is equivalent to: 
+// #derive[Equal, Hash, Stringify, Copy]
+
+data struct ItemData{
+    id: String;
+    item_type: ItemType;
+    stats: Stats?; // optional -> JVM nullable
+} // `data` auto-generates equals, hashCode, toString, copy
+
+impl ItemData::{
+    fn Item getItem(this){
+        let item = Item(); // implicit constructor
+        if(this.stats != null){
+            item.setLore(lore.formatStats(this.stats)); // lore helper from Stella module
+        }
+        return item;
+    }
+};
+
+// ------------------------------------------------------------
+// EVENT HOOK
+// ------------------------------------------------------------
+
+// Fabric join event hook (evt inferred as fabric.events.JoinEvent)
+hook fabric.events.Join(this, evt){
+    item = ItemData("item", ItemType.A, AStats()); // AStats uses default damage
+    evt.getPlayer().giveItem(item.getItem());
+}
