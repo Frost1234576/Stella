@@ -5,6 +5,38 @@ use crate::literals::{Generic, GenericType, Literal, PrimitiveType};
 use crate::tokenizer::lexer::{Token, TokenType};
 use crate::parser::ParserError;
 
+pub struct ExprResult{
+    pub ops: Vec<Op>,
+    pub result_types: Vec<GenericType>,
+}
+
+impl ExprResult{
+    pub fn into(self) -> Expr {
+        Expr::new(self.ops)
+    }
+
+    pub fn extend(&mut self, other: Vec<Op>){
+        self.ops.extend(other);
+    }
+
+    pub fn extend_expr(&mut self, other: ExprResult){
+        self.ops.extend(other.ops);
+    }
+
+    pub fn push(&mut self, op: Op){
+        self.ops.push(op);
+    }
+
+    pub fn from_load(literal: Literal) -> Self {
+        let result_types = literal.get_type();
+        Self {
+            ops: vec![Op::Push(literal)],
+            result_types: vec![GenericType { base: result_types, generic: None }],
+        }
+
+    }
+}
+
 pub struct ExprParser<'a> {
     tokens: Peekable<Iter<'a, Token>>,
     current_line: usize,
@@ -112,47 +144,12 @@ impl<'a> ExprParser<'a> {
     }
 
     // -------------------------------------------------------------------------
-    // Assignment
-    // -------------------------------------------------------------------------
-
-    pub fn parse_assignment(tokens: &'a [Token], errors: &mut Vec<ParserError>) -> Option<ASTNode> {
-        if tokens[0].token_type != TokenType::Identifier {
-            errors.push(ParserError {
-                line: tokens[0].line,
-                message: "Expected identifier for assignment".to_string(),
-            });
-            return None;
-        }
-
-        if tokens[1].token_type != TokenType::Equal {
-            errors.push(ParserError {
-                line: tokens[1].line,
-                message: "Expected '=' for assignment".to_string(),
-            });
-            return None;
-        }
-
-        if tokens.len() < 3 {
-            errors.push(ParserError {
-                line: tokens[0].line,
-                message: "Expected expression for assignment".to_string(),
-            });
-            return None;
-        }
-
-        let var_name = tokens[0].lexeme.clone();
-        let expr = ExprParser::parse_expr_from_slice(&tokens[2..], errors)?;
-
-        Some(ASTNode::Assignment(var_name, expr))
-    }
-
-    // -------------------------------------------------------------------------
     // Public entry points
     // -------------------------------------------------------------------------
 
-    pub fn parse_expr_from_slice(tokens: &'a [Token], errors: &mut Vec<ParserError>) -> Option<Expr> {
+    pub fn parse_expr_from_slice(tokens: &'a [Token], errors: &mut Vec<ParserError>) -> Expr {
         let mut parser = ExprParser::new(tokens);
-        parser.parse_expr(errors)
+        return parser.parse_expr(errors).unwrap().into();
     }
 
     // -------------------------------------------------------------------------
@@ -189,44 +186,43 @@ impl<'a> ExprParser<'a> {
     // The public parse_expr wraps the result in Expr::new().
     // -------------------------------------------------------------------------
 
-    pub fn parse_expr(&mut self, errors: &mut Vec<ParserError>) -> Option<Expr> {
-        let ops = self.expr_ops(errors)?;
-        Some(Expr::new(ops))
+    pub fn parse_expr(&mut self, errors: &mut Vec<ParserError>) -> Option<ExprResult> {
+        return self.expr_ops(errors);
     }
 
     // Logical OR  (lowest precedence)
-    fn expr_ops(&mut self, errors: &mut Vec<ParserError>) -> Option<Vec<Op>> {
-        self.parse_logical_or(errors)
+    fn expr_ops(&mut self, errors: &mut Vec<ParserError>) -> Option<ExprResult> {
+        return self.parse_logical_or(errors);
     }
 
-    fn parse_logical_or(&mut self, errors: &mut Vec<ParserError>) -> Option<Vec<Op>> {
-        let mut ops = self.parse_logical_and(errors)?;
+    fn parse_logical_or(&mut self, errors: &mut Vec<ParserError>) -> Option<ExprResult> {
+        let mut result = self.parse_logical_and(errors)?;
 
         while self.match_types(&[TokenType::DoubleBar]).is_some() {
             let right = self.parse_logical_and(errors)?;
-            ops.extend(right);
-            ops.push(Op::Or);
+            result.extend_expr(right);
+            result.push(Op::Or);
         }
 
-        Some(ops)
+        Some(result)
     }
 
     // Logical AND
-    fn parse_logical_and(&mut self, errors: &mut Vec<ParserError>) -> Option<Vec<Op>> {
-        let mut ops = self.parse_equality(errors)?;
+    fn parse_logical_and(&mut self, errors: &mut Vec<ParserError>) -> Option<ExprResult> {
+        let mut result = self.parse_equality(errors)?;
 
         while self.match_types(&[TokenType::DoubleAmpersand]).is_some() {
-            let right = self.parse_equality(errors)?;
-            ops.extend(right);
-            ops.push(Op::And);
+            let right: ExprResult = self.parse_equality(errors)?;
+            result.extend_expr(right);
+            result.push(Op::And);
         }
 
-        Some(ops)
+        Some(result)
     }
 
     // Equality (==, !=)
-    fn parse_equality(&mut self, errors: &mut Vec<ParserError>) -> Option<Vec<Op>> {
-        let mut ops = self.parse_comparison(errors)?;
+    fn parse_equality(&mut self, errors: &mut Vec<ParserError>) -> Option<ExprResult> {
+        let mut result = self.parse_comparison(errors)?;
 
         while let Some(op_tok) = self.match_types(&[TokenType::EqualEqual, TokenType::BangEqual]) {
             let op = match op_tok.token_type {
@@ -235,16 +231,16 @@ impl<'a> ExprParser<'a> {
                 _ => unreachable!(),
             };
             let right = self.parse_comparison(errors)?;
-            ops.extend(right);
-            ops.push(op);
+            result.extend_expr(right);
+            result.push(op);
         }
 
-        Some(ops)
+        Some(result)
     }
 
     // Comparison (<, >, <=, >=)
-    fn parse_comparison(&mut self, errors: &mut Vec<ParserError>) -> Option<Vec<Op>> {
-        let mut ops = self.parse_term(errors)?;
+    fn parse_comparison(&mut self, errors: &mut Vec<ParserError>) -> Option<ExprResult> {
+        let mut result = self.parse_term(errors)?;
 
         while let Some(op_tok) = self.match_types(&[
             TokenType::Greater,
@@ -260,16 +256,16 @@ impl<'a> ExprParser<'a> {
                 _ => unreachable!(),
             };
             let right = self.parse_term(errors)?;
-            ops.extend(right);
-            ops.push(op);
+            result.extend_expr(right);
+            result.push(op);
         }
 
-        Some(ops)
+        Some(result)
     }
 
     // Addition / subtraction
-    fn parse_term(&mut self, errors: &mut Vec<ParserError>) -> Option<Vec<Op>> {
-        let mut ops = self.parse_factor(errors)?;
+    fn parse_term(&mut self, errors: &mut Vec<ParserError>) -> Option<ExprResult> {
+        let mut result = self.parse_factor(errors)?;
 
         while let Some(op_tok) = self.match_types(&[TokenType::Plus, TokenType::Minus]) {
             let op = match op_tok.token_type {
@@ -278,16 +274,16 @@ impl<'a> ExprParser<'a> {
                 _ => unreachable!(),
             };
             let right = self.parse_factor(errors)?;
-            ops.extend(right);
-            ops.push(op);
+            result.extend_expr(right);
+            result.push(op);
         }
 
-        Some(ops)
+        Some(result)
     }
 
     // Multiplication / division
-    fn parse_factor(&mut self, errors: &mut Vec<ParserError>) -> Option<Vec<Op>> {
-        let mut ops = self.parse_unary(errors)?;
+    fn parse_factor(&mut self, errors: &mut Vec<ParserError>) -> Option<ExprResult> {
+        let mut result = self.parse_unary(errors)?;
 
         while let Some(op_tok) = self.match_types(&[TokenType::Star, TokenType::Slash]) {
             let op = match op_tok.token_type {
@@ -296,15 +292,15 @@ impl<'a> ExprParser<'a> {
                 _ => unreachable!(),
             };
             let right = self.parse_unary(errors)?;
-            ops.extend(right);
-            ops.push(op);
+            result.extend_expr(right);
+            result.push(op);
         }
 
-        Some(ops)
+        Some(result)
     }
 
     // Unary (!, -, +)
-    fn parse_unary(&mut self, errors: &mut Vec<ParserError>) -> Option<Vec<Op>> {
+    fn parse_unary(&mut self, errors: &mut Vec<ParserError>) -> Option<ExprResult> {
         if let Some(op_tok) = self.match_types(&[TokenType::Bang, TokenType::Minus, TokenType::Plus]) {
             let op = match op_tok.token_type {
                 TokenType::Bang  => Op::Not,
@@ -312,10 +308,10 @@ impl<'a> ExprParser<'a> {
                 // stack machine always sees binary ops.  Alternatively you could
                 // add Op::Negate; adjust here if you add that variant.
                 TokenType::Minus => {
-                    let mut ops = vec![Op::Push(Literal::Int(0))];
-                    ops.extend(self.parse_unary(errors)?);
-                    ops.push(Op::Subtract);
-                    return Some(ops);
+                    let mut result = ExprResult {ops: vec![Op::Push(Literal::Int(0))], result_types: vec![GenericType { base: PrimitiveType::Int, generic: None }]};
+                    result.extend_expr(self.parse_unary(errors)?);
+                    result.push(Op::Subtract);
+                    return Some(result);
                 }
                 TokenType::Plus => {
                     // Unary plus is a no-op; just return the inner expression.
@@ -324,9 +320,9 @@ impl<'a> ExprParser<'a> {
                 _ => unreachable!(),
             };
 
-            let mut ops = self.parse_unary(errors)?;
-            ops.push(op);
-            return Some(ops);
+            let mut result = self.parse_unary(errors)?;
+            result.push(op);
+            return Some(result);
         }
 
         self.parse_postfix(errors)
@@ -334,8 +330,8 @@ impl<'a> ExprParser<'a> {
 
     // Postfix: dot-access and method calls
     // Emits the object ops first, then GetField / CallMethod on top.
-    fn parse_postfix(&mut self, errors: &mut Vec<ParserError>) -> Option<Vec<Op>> {
-        let mut ops = self.parse_primary(errors)?;
+    fn parse_postfix(&mut self, errors: &mut Vec<ParserError>) -> Option<ExprResult> {
+        let mut result = self.parse_primary(errors)?;
 
         loop {
             if self.match_types(&[TokenType::Dot]).is_none() {
@@ -372,15 +368,15 @@ impl<'a> ExprParser<'a> {
 
                 // not sure when this would ever be reached because it is handled in parse_primary...
             } else {
-                ops.push(Op::GetField(name_tok));
+                result.push(Op::GetField(name_tok));
             }
         }
 
-        Some(ops)
+        Some(result)
     }
 
     // Primary: literals, identifiers, function calls, grouped expressions
-    fn parse_primary(&mut self, errors: &mut Vec<ParserError>) -> Option<Vec<Op>> {
+    fn parse_primary(&mut self, errors: &mut Vec<ParserError>) -> Option<ExprResult> {
         let token = match self.peek() {
             Some(t) => t.clone(),
             None => {
@@ -396,15 +392,15 @@ impl<'a> ExprParser<'a> {
             // --- Boolean / nil literals ---
             TokenType::True => {
                 self.advance();
-                return Some(vec![Op::Push(Literal::Bool(true))]);
+                return Some(ExprResult::from_load(Literal::Bool(true)));
             }
             TokenType::False => {
                 self.advance();
-                return Some(vec![Op::Push(Literal::Bool(false))]);
+                return Some(ExprResult::from_load(Literal::Bool(false)));
             }
             TokenType::Nil => {
                 self.advance();
-                return Some(vec![Op::Push(Literal::Nil)]);
+                return Some(ExprResult::from_load(Literal::Nil));
             }
 
             // --- Numeric literals ---
@@ -413,7 +409,7 @@ impl<'a> ExprParser<'a> {
                 self.advance();
 
                 if let Ok(v) = raw.parse::<f32>() {
-                    return Some(vec![Op::Push(Literal::Float(v))]);
+                    return Some(ExprResult::from_load(Literal::Float(v)));
                 }
 
                 errors.push(ParserError {
@@ -427,7 +423,7 @@ impl<'a> ExprParser<'a> {
                 self.advance();
 
                 if let Ok(v) = raw.parse::<f64>() {
-                    return Some(vec![Op::Push(Literal::Double(v))]);
+                    return Some(ExprResult::from_load(Literal::Double(v)));
                 }
 
                 errors.push(ParserError {
@@ -440,7 +436,7 @@ impl<'a> ExprParser<'a> {
                 let raw = token.literal.clone().unwrap_or_else(|| token.lexeme.clone());
                 self.advance();
                 if let Ok(v) = raw.parse::<i32>() {
-                    return Some(vec![Op::Push(Literal::Int(v))]);
+                    return Some(ExprResult::from_load(Literal::Int(v)));
                 }
                 errors.push(ParserError {
                     line: self.current_line,
@@ -452,7 +448,7 @@ impl<'a> ExprParser<'a> {
                 let raw = token.literal.clone().unwrap_or_else(|| token.lexeme.clone());
                 self.advance();
                 if let Ok(v) = raw.parse::<i64>() {
-                    return Some(vec![Op::Push(Literal::Long(v))]);
+                    return Some(ExprResult::from_load(Literal::Long(v)));
                 }
                 errors.push(ParserError {
                     line: self.current_line,
@@ -463,7 +459,7 @@ impl<'a> ExprParser<'a> {
             TokenType::String => {
                 let value = token.literal.clone().unwrap_or_else(|| token.lexeme.clone());
                 self.advance();
-                return Some(vec![Op::Push(Literal::String(value))]);
+                return Some(ExprResult::from_load(Literal::String(value)));
             }
 
             // --- Identifier: variable reference or standalone function call ---
@@ -493,7 +489,7 @@ impl<'a> ExprParser<'a> {
                     return Some(ops);
                 }
 
-                return Some(vec![Op::LoadIdentifier(name)]);
+                return Some(ExprResult {ops: vec![Op::LoadIdentifier(name)], result_types: vec![]});
             }
 
             // --- Grouped expression ---
