@@ -32,15 +32,10 @@
 //         4  
 //     );
 
-use std::sync::Arc;
-
-use crate::ast::{AST, ASTNode, Expr, Op};
+use crate::ast::{ASTNode, Expr, MethodSignature, Op};
 use crate::compiler::scope::Scope;
-use crate::literals::{PrimitiveType, Literal, Parameter, Generic};
+use crate::literals::{PrimitiveType, Literal, Parameter};
 use crate::compiler::instructions::{Instruction, Label};
-use std::borrow::BorrowMut;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 pub struct Method{
 	pub name: String,
@@ -123,7 +118,7 @@ impl Method {
 				},
 				ASTNode::VarDecl(name, type_, expr) => {
 					let slot = scopes[0].add_var(name.clone(), type_.clone().expect("VarDecl must have a type"));
-					if(expr.is_none()) {
+					if expr.is_none() {
 						instructions.push(Instruction::Push(Literal::Nil));
 					}else{
 						let (expr_instructions, expr_max_stack) = Method::compile_expr(&mut self.label_counter, expr.as_ref().unwrap(), &scopes[0], &mut stack);
@@ -355,37 +350,37 @@ impl Method {
 					stack.push(PrimitiveType::Bool);
 				},
 
-				Op::GetStaticField(class, name, desc) => {
-					instructions.push(Instruction::GetStatic {
-						class: class.clone(),
-						name: name.clone(),
-						desc: desc.clone(),
-					});
+				Op::GetStaticField(owner, name) => {
+					// instructions.push(Instruction::GetStatic {
+					// 	owner: owner.clone(), //java/lang/System      | java/lang/Integer
+					// 	name: name.clone(), // out                    | MAX_VALUE
+//  desc deduced during compilation not parser Ljava/io/PrintStream;  | I
+					// });
 					// Record that a reference is now on the stack
-					stack.push(PrimitiveType::Reference(desc.clone()));
+					// stack.push(PrimitiveType::Reference(desc.clone()));
 				},
 
-				Op::CallMethod(class, name, desc) => {
-					let arg_count = Self::count_parameters(&desc);
+				Op::CallMethod(name) => {
+				// 	let arg_count = Self::count_parameters(&signature.desc);
 					
-					// 1. Pop arguments from our tracking stack
-					for _ in 0..arg_count {
-						stack.pop();
-					}
+				// 	// 1. Pop arguments from our tracking stack
+				// 	for _ in 0..arg_count {
+				// 		stack.pop();
+				// 	}
 					
-					// 2. Pop the object reference (the 'receiver')
-					stack.pop();
+				// 	// 2. Pop the object reference (the 'receiver')
+				// 	let obj_ref = stack.pop();
 
-					instructions.push(Instruction::InvokeVirtual {
-						class: class.clone(),
-						name: name.clone(),
-						desc: desc.clone(),
-					});
+				// 	instructions.push(Instruction::InvokeVirtual {
+				// 		owner: owner.clone(),
+				// 		name: name.clone(),
+				// 		desc: desc.clone(),
+				// 	});
 
-					// 3. Push return type back to stack if not void (V)
-					if !desc.ends_with('V') {
-						// stack.push(parsed_return_type_from_desc);
-					}
+				// 	// 3. Push return type back to stack if not void (V)
+				// 	if !desc.ends_with('V') {
+				// 		// stack.push(parsed_return_type_from_desc);
+				// 	}
 				},
 								
 				_ => {}

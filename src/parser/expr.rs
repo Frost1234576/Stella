@@ -1,6 +1,6 @@
 use std::iter::Peekable;
 use std::slice::Iter;
-use crate::ast::{ASTNode, Expr, Op};
+use crate::ast::{ASTNode, Expr, MethodSignature, Op};
 use crate::literals::{Generic, GenericType, Literal, PrimitiveType};
 use crate::tokenizer::lexer::{Token, TokenType};
 use crate::parser::ParserError;
@@ -359,14 +359,18 @@ impl<'a> ExprParser<'a> {
 
             if self.check(TokenType::LeftParen) {
                 self.advance(); // consume '('
-                let arg_ops = self.parse_arguments(errors)?;
+                // let arg_ops = self.parse_arguments(errors)?;
 
-                // Object ops are already in `ops`; arguments follow on the stack.
-                ops.extend(arg_ops);
+                // // Object ops are already in `ops`; arguments follow on the stack.
+                // ops.extend(arg_ops);
 
-                let class_desc  = Self::get_class_descriptor(&name_tok);
-                let method_desc = Self::get_method_descriptor(&name_tok);
-                ops.push(Op::CallMethod(class_desc, name_tok, method_desc));
+                // let class_desc  = Self::get_class_descriptor(&name_tok);
+                // let method_desc = Self::get_method_descriptor(&name_tok);
+                // ops.push(Op::CallMethod(MethodDescriptor {}));
+                
+
+
+                // not sure when this would ever be reached because it is handled in parse_primary...
             } else {
                 ops.push(Op::GetField(name_tok));
             }
@@ -456,30 +460,6 @@ impl<'a> ExprParser<'a> {
                 });
                 return None;
             }
-            TokenType::Float => {
-                let raw = token.literal.clone().unwrap_or_else(|| token.lexeme.clone());
-                self.advance();
-                if let Ok(v) = raw.parse::<f32>() {
-                    return Some(vec![Op::Push(Literal::Float(v))]);
-                }
-                errors.push(ParserError {
-                    line: self.current_line,
-                    message: format!("Invalid float literal: {}", raw),
-                });
-                return None;
-            }
-            TokenType::Double => {
-                let raw = token.literal.clone().unwrap_or_else(|| token.lexeme.clone());
-                self.advance();
-                if let Ok(v) = raw.parse::<f64>() {
-                    return Some(vec![Op::Push(Literal::Double(v))]);
-                }
-                errors.push(ParserError {
-                    line: self.current_line,
-                    message: format!("Invalid double literal: {}", raw),
-                });
-                return None;
-            }
             TokenType::String => {
                 let value = token.literal.clone().unwrap_or_else(|| token.lexeme.clone());
                 self.advance();
@@ -495,13 +475,21 @@ impl<'a> ExprParser<'a> {
                     self.advance(); // consume '('
                     let arg_ops = self.parse_arguments(errors)?;
 
+                    // System.out.println("Hello, world!");
+                    // Dot operators would be parsed first...
+                    // if we have an identifier we have to
+                    // go back through the dot operators
+                    // until we find either a variable
+                    // or something in the global or local registries.
+                    // (global registry is basically only stella classes)
+
                     // A bare function call is emitted as CallMethod with no
                     // implicit receiver pushed; the class/descriptor helpers
                     // are responsible for resolving the target.
-                    let class_desc  = Self::get_class_descriptor(&name);
-                    let method_desc = Self::get_method_descriptor(&name);
+                    // let class_desc  = Self::get_class_descriptor(&name);
+                    // let method_desc = Self::get_method_descriptor(&name);
                     let mut ops = arg_ops;
-                    ops.push(Op::CallMethod(class_desc, name, method_desc));
+                    ops.push(Op::CallMethod(MethodSignature::new(name.clone(), Vec::new(), GenericType { base: PrimitiveType::Nil, generic: None }, None)));
                     return Some(ops);
                 }
 

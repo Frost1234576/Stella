@@ -170,7 +170,7 @@ impl Parameter {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GenericType{
 	pub base: PrimitiveType,
 	pub generic: Option<Generic>,

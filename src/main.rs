@@ -7,6 +7,7 @@ mod parser;
 use compiler::class::{JavaClass, create_jar};
 use ast::ASTNode;
 use literals::Literal;
+use crate::parser::expr::ExprParser;
 use crate::parser::method::Method;
 
 use crate::{ast::{Expr, Op}, compiler::class::AccessFlags, literals::{Parameter, PrimitiveType}};
@@ -63,6 +64,17 @@ use crate::{ast::{Expr, Op}, compiler::class::AccessFlags, literals::{Parameter,
 // }
 
 fn main() -> std::io::Result<()> {
-    
+    let tokens = tokenizer::tokenize_file("test.stella")?;
+    let mut errors = Vec::new();
+    let expr = ExprParser::new(&tokens).parse_expr(&mut errors);
+
+    if !errors.is_empty() {
+        for error in errors {
+            println!("{}: {}", error.line, error.message);
+        }
+    }
+
+    println!("Parsed expression: {:?}", expr);
+
     Ok(())
 }

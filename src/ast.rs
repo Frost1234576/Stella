@@ -24,10 +24,10 @@ impl Expr {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Op {
     Push(Literal),
-    LoadIdentifier(String),
-    CallMethod(String, String, String), // class, method name, method descriptor
-    GetField(String),
-	GetStaticField(String, String, String), // class, field name, field descriptor
+    LoadIdentifier(String), // slot counts decided at compile time, not here
+    CallMethod(MethodSignature),
+    GetField(String), // field name
+	GetStaticField(String, String), // owner, name
     // Arithmetic
     Add, Subtract, Multiply, Divide, Power,
     // Logic
@@ -87,9 +87,16 @@ pub struct ClassSignature{
 pub struct MethodSignature{
 	name: String,
 	params: Vec<Parameter>,
-	return_type: PrimitiveType,
+	return_type: GenericType,
 	bound_class_signature: Option<ClassSignature>,
 }
+
+impl MethodSignature{
+	pub fn new(name: String, params: Vec<Parameter>, return_type: GenericType, bound_class_signature: Option<ClassSignature>) -> Self{
+		Self{name, params, return_type, bound_class_signature}
+	}
+}
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Struct{
