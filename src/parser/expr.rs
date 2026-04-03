@@ -1,6 +1,7 @@
 use std::iter::Peekable;
 use std::slice::Iter;
 use crate::ast::{ASTNode, Expr, Op};
+use crate::context::GlobalContext;
 use crate::literals::{Generic, GenericType, Literal, PrimitiveType};
 use crate::tokenizer::lexer::{Token, TokenType};
 use crate::parser::ParserError;
@@ -8,13 +9,15 @@ use crate::parser::ParserError;
 pub struct ExprParser<'a> {
     tokens: Peekable<Iter<'a, Token>>,
     current_line: usize,
+    global_context: &'a mut GlobalContext
 }
 
 impl<'a> ExprParser<'a> {
-    pub fn new(tokens: &'a [Token]) -> Self {
+    pub fn new(tokens: &'a [Token], global_context: &'a mut GlobalContext) -> Self {
         ExprParser {
             tokens: tokens.iter().peekable(),
             current_line: 1,
+            global_context
         }
     }
 
@@ -112,46 +115,11 @@ impl<'a> ExprParser<'a> {
     }
 
     // -------------------------------------------------------------------------
-    // Assignment
-    // -------------------------------------------------------------------------
-
-    pub fn parse_assignment(tokens: &'a [Token], errors: &mut Vec<ParserError>) -> Option<ASTNode> {
-        if tokens[0].token_type != TokenType::Identifier {
-            errors.push(ParserError {
-                line: tokens[0].line,
-                message: "Expected identifier for assignment".to_string(),
-            });
-            return None;
-        }
-
-        if tokens[1].token_type != TokenType::Equal {
-            errors.push(ParserError {
-                line: tokens[1].line,
-                message: "Expected '=' for assignment".to_string(),
-            });
-            return None;
-        }
-
-        if tokens.len() < 3 {
-            errors.push(ParserError {
-                line: tokens[0].line,
-                message: "Expected expression for assignment".to_string(),
-            });
-            return None;
-        }
-
-        let var_name = tokens[0].lexeme.clone();
-        let expr = ExprParser::parse_expr_from_slice(&tokens[2..], errors)?;
-
-        Some(ASTNode::Assignment(var_name, expr))
-    }
-
-    // -------------------------------------------------------------------------
     // Public entry points
     // -------------------------------------------------------------------------
 
-    pub fn parse_expr_from_slice(tokens: &'a [Token], errors: &mut Vec<ParserError>) -> Option<Expr> {
-        let mut parser = ExprParser::new(tokens);
+    pub fn parse_expr_from_slice(tokens: &'a [Token], global_context: &mut GlobalContext, errors: &mut Vec<ParserError>) -> Option<Expr> {
+        let mut parser = ExprParser::new(tokens, global_context);
         parser.parse_expr(errors)
     }
 
@@ -161,6 +129,10 @@ impl<'a> ExprParser<'a> {
 
     fn peek(&mut self) -> Option<&Token> {
         self.tokens.peek().copied()
+    }
+
+    fn peek_n(&mut self, n: usize) -> Option<&Token> {
+        self.tokens.nth(n)
     }
 
     fn advance(&mut self) -> Option<&'a Token> {
@@ -364,9 +336,9 @@ impl<'a> ExprParser<'a> {
                 // Object ops are already in `ops`; arguments follow on the stack.
                 ops.extend(arg_ops);
 
+
                 let class_desc  = Self::get_class_descriptor(&name_tok);
-                let method_desc = Self::get_method_descriptor(&name_tok);
-                ops.push(Op::CallMethod(class_desc, name_tok, method_desc));
+                ops.push(Op::CallMethod(name_tok));
             } else {
                 ops.push(Op::GetField(name_tok));
             }
@@ -456,30 +428,6 @@ impl<'a> ExprParser<'a> {
                 });
                 return None;
             }
-            TokenType::Float => {
-                let raw = token.literal.clone().unwrap_or_else(|| token.lexeme.clone());
-                self.advance();
-                if let Ok(v) = raw.parse::<f32>() {
-                    return Some(vec![Op::Push(Literal::Float(v))]);
-                }
-                errors.push(ParserError {
-                    line: self.current_line,
-                    message: format!("Invalid float literal: {}", raw),
-                });
-                return None;
-            }
-            TokenType::Double => {
-                let raw = token.literal.clone().unwrap_or_else(|| token.lexeme.clone());
-                self.advance();
-                if let Ok(v) = raw.parse::<f64>() {
-                    return Some(vec![Op::Push(Literal::Double(v))]);
-                }
-                errors.push(ParserError {
-                    line: self.current_line,
-                    message: format!("Invalid double literal: {}", raw),
-                });
-                return None;
-            }
             TokenType::String => {
                 let value = token.literal.clone().unwrap_or_else(|| token.lexeme.clone());
                 self.advance();
@@ -498,11 +446,15 @@ impl<'a> ExprParser<'a> {
                     // A bare function call is emitted as CallMethod with no
                     // implicit receiver pushed; the class/descriptor helpers
                     // are responsible for resolving the target.
-                    let class_desc  = Self::get_class_descriptor(&name);
                     let method_desc = Self::get_method_descriptor(&name);
                     let mut ops = arg_ops;
-                    ops.push(Op::CallMethod(class_desc, name, method_desc));
+                    ops.push(Op::CallStaticMethod(self.global_context.root_package.clone() + "MainClass", name));
                     return Some(ops);
+
+
+                    // this means the method is a public static method, it is **ALWAYS** recieved by the main class
+
+                    // update #2 will allow private methods that are only accessible within certain files
                 }
 
                 return Some(vec![Op::LoadIdentifier(name)]);

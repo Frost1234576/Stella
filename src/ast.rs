@@ -25,9 +25,10 @@ impl Expr {
 pub enum Op {
     Push(Literal),
     LoadIdentifier(String),
-    CallMethod(String, String, String), // class, method name, method descriptor
-    GetField(String),
-	GetStaticField(String, String, String), // class, field name, field descriptor
+    CallMethod(String), // method name - class and method descriptor determined compile time
+    CallStaticMethod(String, String),
+	GetField(String),
+	GetStaticField(String, String), // class, field name - field descriptor determined compile time
     // Arithmetic
     Add, Subtract, Multiply, Divide, Power,
     // Logic

@@ -11,3 +11,9 @@ For example, `fabric-core.stellab` can configure the main class to inherit from 
 Although `.stellab` files may provide bindings for specific methods, Stella also supports direct Java interoperability, since it ultimately compiles to JVM bytecode.
 
 TLDR; Stella binary files allow for workspace / environment-specific macros and bulk-imports.
+
+
+# TODO
+
+- Per-file private global static methods
+- Importing before expression parsing

@@ -355,37 +355,39 @@ impl Method {
 					stack.push(PrimitiveType::Bool);
 				},
 
-				Op::GetStaticField(class, name, desc) => {
+				Op::GetStaticField(class, name) => {
+					let desc = "V".to_string(); // Placeholder, should be resolved to actual field type
 					instructions.push(Instruction::GetStatic {
 						class: class.clone(),
 						name: name.clone(),
 						desc: desc.clone(),
 					});
 					// Record that a reference is now on the stack
-					stack.push(PrimitiveType::Reference(desc.clone()));
+					stack.push(PrimitiveType::from_string(desc.as_str()));
 				},
 
-				Op::CallMethod(class, name, desc) => {
-					let arg_count = Self::count_parameters(&desc);
+				Op::CallMethod(name) => {
 					
-					// 1. Pop arguments from our tracking stack
-					for _ in 0..arg_count {
-						stack.pop();
-					}
+					// let arg_count = Self::count_parameters(&desc);
 					
-					// 2. Pop the object reference (the 'receiver')
-					stack.pop();
+					// // 1. Pop arguments from our tracking stack
+					// for _ in 0..arg_count {
+					// 	stack.pop();
+					// }
+					
+					// // 2. Pop the object reference (the 'receiver')
+					// stack.pop();
 
-					instructions.push(Instruction::InvokeVirtual {
-						class: class.clone(),
-						name: name.clone(),
-						desc: desc.clone(),
-					});
+					// instructions.push(Instruction::InvokeVirtual {
+					// 	class: class.clone(),
+					// 	name: name.clone(),
+					// 	desc: desc.clone(),
+					// });
 
-					// 3. Push return type back to stack if not void (V)
-					if !desc.ends_with('V') {
-						// stack.push(parsed_return_type_from_desc);
-					}
+					// // 3. Push return type back to stack if not void (V)
+					// if !desc.ends_with('V') {
+					// 	// stack.push(parsed_return_type_from_desc);
+					// }
 				},
 								
 				_ => {}

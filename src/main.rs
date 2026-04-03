@@ -3,11 +3,17 @@ mod ast;
 mod literals;
 mod tokenizer;
 mod parser;
+mod context;
+mod binaries;
+
+
+use std::sync::Arc;
 
 use compiler::class::{JavaClass, create_jar};
 use ast::ASTNode;
 use literals::Literal;
 use crate::parser::method::Method;
+use crate::context::GlobalContext;
 
 use crate::{ast::{Expr, Op}, compiler::class::AccessFlags, literals::{Parameter, PrimitiveType}};
 
@@ -59,6 +65,14 @@ use crate::{ast::{Expr, Op}, compiler::class::AccessFlags, literals::{Parameter,
 //     create_jar("CompilerTest.jar", "CompilerTest", files)?;
 
 //     println!("Successfully compiled EdgeCaseDemo.jar");
+//     Ok(())
+// }
+
+// fn main() -> std::io::Result<()> {
+//     let mut ctx = GlobalContext{
+//         root: Arc::new(tokenizer::lexer::File::new("test.stella")),
+//         root_package: "com.stella".into(),
+//     };
 //     Ok(())
 // }
 
