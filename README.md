@@ -17,3 +17,7 @@ TLDR; Stella binary files allow for workspace / environment-specific macros and 
 
 - Per-file private global static methods
 - Importing before expression parsing
+
+
+
+# Stella has been temporarily paused due to my realization that Kotlin achieves many of the things I wished to do with Stella
